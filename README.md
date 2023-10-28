@@ -2,8 +2,6 @@
 
 Integration between YNAB and Splitwise.
 
-NOTE: This is what this _will_ look like.
-
 ## Overview
 
 My partner and I use Splitwise for shared expenses, and I use YNAB to track my spending. We follow the "Option Two" as
@@ -17,7 +15,7 @@ subject. Specifically:
    2. The sum of their part of all purchases I made on their behalf, categorized as an inflow in the "Splitting"
       category
 
-This integration makes this easier.
+This integration makes performing the above bookkeeping easier.
 
 ### "I Pay" Transactions
 
@@ -26,6 +24,7 @@ of the split. For example, if we eat at a restaurant and the bill is $50, I crea
 "Restaurant" budget. I also give the transaction a specific tag.
 
 Then, this integration picks up the tagged transaction and:
+
 1. Converts it into a split transaction. In the example above, it would split the transaction into a $25 "Restaurant"
    transaction (my portion), and a $25 "Splitting" transaction (their portion).
 2. Adds the transaction to Splitwise.
