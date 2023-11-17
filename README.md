@@ -4,38 +4,30 @@ Integration between YNAB and Splitwise.
 
 ## Overview
 
-My partner and I use Splitwise for shared expenses, and I use YNAB to track my spending. We follow the "Option Two" as
-outlined in [YNAB's blog post](https://support.ynab.com/en_us/splitwise-and-ynab-a-guide-H1GwOyuCq#register) on the
-subject. Specifically:
+My partner and I use a combination of a shared credit card account and Venmo for shared expenses, and I use YNAB to
+track my spending. We roughly follow the "Option Two" as outlined in
+[YNAB's blog post](https://support.ynab.com/en_us/splitwise-and-ynab-a-guide-H1GwOyuCq#register) on the subject.
+This integration makes the bookkeeping easier. Our setup is:
 
-1. When I make a purchase, the full dollar amount is recorded in YNAB as a split transaction: (usually) half the
-   transaction comes from a normal category, and the remainder comes from a "Splitting" category.
-2. When a settle-up transaction happens it's a split transaction consisting of:
-   1. Purchases my parter made on my behalf, categorized as outflows in the relevant categories
-   2. The sum of their part of all purchases I made on their behalf, categorized as an inflow in the "Splitting"
-      category
-
-This integration makes performing the above bookkeeping easier.
-
-### "I Pay" Transactions
-
-When I make a purchase I log it in YNAB as a simple (non-split) transaction, with the correct category for my portion
-of the split. For example, if we eat at a restaurant and the bill is $50, I create a $50 transaction coming from my
-"Restaurant" budget. I also give the transaction a specific tag.
-
-Then, this integration picks up the tagged transaction and:
-
-1. Converts it into a split transaction. In the example above, it would split the transaction into a $25 "Restaurant"
-   transaction (my portion), and a $25 "Splitting" transaction (their portion).
-2. Adds the transaction to Splitwise.
-3. Removes the tag from the transaction.
-
-### "Settle Up" Transactions
-
-When a settle-up transaction occurs in Splitwise, the integration will create a transaction in YNAB. This transaction
-will be pre-split based on the transactions it represents, though none of the splits have categories they do preserve
-their memos from Splitwise. I must then manually categorize each of the splits, but it does save me the math!
+1. We have a shared credit card account that is used for expenses which we split evenly (groceries, restaurants, etc.).
+   This is an account in my name which my partner is an authorized user of.
+1. When either of us makes a purchase on that account, it will be synced to my YNAB via the built-in import. I then
+   classify the full amount of that purchase to the relevant category. So a $30 purchase at Trader Joe's will show up
+   (initially) as coming entirely from my "Groceries" budget category.
+1. This program is run on a periodic schedule and sees that a new expense has been added to the shared credit card
+   account. It updates the transaction to be a split transaction. In this example, it will update the $30 purchase so
+   that $15 come from my "Groceries" budget category, and $15 come from my "Splitting" category.
+1. At the end of the month when we get the bill for the credit card, I pay the full amount and charge my partner for her
+   portion via Venmo manually. When I get paid, that money goes into refilling the "Splitting" category.
 
 ## Configuration
 
-TODO
+Configuration is assumed to live in a `config.go` file at the root of the application. For security reasons, I don't
+check this file into Git, but you can see the general structure in `config.go.example`. To use this yourself, first
+run:
+
+```shell
+cp config.go.example config.go
+```
+
+Then fill in the values in `config.go` with your own values.

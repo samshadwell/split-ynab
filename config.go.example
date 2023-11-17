@@ -1,0 +1,15 @@
+package main
+
+type Config struct {
+	YnabToken string
+	BudgetId  string
+}
+
+// FIXME: Update these to be relevant to your YNAB account.
+func NewConfig() *Config {
+	return &Config{
+		// See https://api.ynab.com/#authentication-overview for how to obtain a token.
+		YnabToken: "some-ynab-token",
+		BudgetId:  "budget-id-123",
+	}
+}
