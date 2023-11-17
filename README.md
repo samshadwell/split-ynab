@@ -22,12 +22,12 @@ This integration makes the bookkeeping easier. Our setup is:
 
 ## Configuration
 
-Configuration is assumed to live in a `config.go` file at the root of the application. For security reasons, I don't
-check this file into Git, but you can see the general structure in `config.go.example`. To use this yourself, first
+Configuration is assumed to live in a `config.yml` file at the root of the application. For security reasons, I don't
+check this file into Git, but you can see the general structure in `config.yml.example`. To use this yourself, first
 run:
 
 ```shell
-cp config.go.example config.go
+cp config.yml.example config.yml
 ```
 
-Then fill in the values in `config.go` with your own values.
+Then fill in the values in `config.yml` with your own values.

@@ -21,4 +21,4 @@
 go.work
 
 # Sensitive config
-config.go
+config.yml
