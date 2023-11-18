@@ -22,6 +22,9 @@ This integration makes the bookkeeping easier. Our setup is:
 
 ## Configuration
 
+!! FIXME !!
+Update the config.yml.example, document it
+
 Configuration is assumed to live in a `config.yml` file at the root of the application. For security reasons, I don't
 check this file into Git, but you can see the general structure in `config.yml.example`. To use this yourself, first
 run:
