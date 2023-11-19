@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/samshadwell/split-ynab/storage"
 	"github.com/samshadwell/split-ynab/ynab"
 )
 
@@ -24,13 +25,30 @@ func main() {
 		os.Exit(1)
 	}
 
-	budgetsResponse, err := client.GetBudgetsWithResponse(context.TODO(), &ynab.GetBudgetsParams{})
+	storage := storage.NewLocalStorageAdapter()
+	// Ignore error return, we can use the default value of 0 in case of error.
+	serverKnowledge, _ := storage.GetLastServerKnowledge(config.BudgetId)
+
+	transactionsResponse, err := client.GetTransactionsByAccountWithResponse(
+		context.TODO(),
+		config.BudgetId,
+		config.SplitAccountIds[0],
+		&ynab.GetTransactionsByAccountParams{
+			LastKnowledgeOfServer: &serverKnowledge,
+		},
+	)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error while getting budgets: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error while getting transactions: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Budgets: %v\n", budgetsResponse.JSON200.Data.Budgets)
+	newKnowledge := transactionsResponse.JSON200.Data.ServerKnowledge
+	fmt.Printf("Transaction count: %v, New server knowledge: %v\n", len(transactionsResponse.JSON200.Data.Transactions), newKnowledge)
+	err = storage.SetLastServerKnowledge(config.BudgetId, newKnowledge)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error while setting new server knowledge: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func constructClient(authToken string) (*ynab.ClientWithResponses, error) {

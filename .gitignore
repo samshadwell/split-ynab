@@ -22,3 +22,6 @@ go.work
 
 # Sensitive config
 config.yml
+
+# Simple local KV store
+storage.yml
