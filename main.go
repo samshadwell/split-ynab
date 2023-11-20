@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 
+	"github.com/google/uuid"
 	"github.com/samshadwell/split-ynab/storage"
 	"github.com/samshadwell/split-ynab/ynab"
 	"go.uber.org/zap"
@@ -58,7 +59,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	updatedTransactions := splitTransactions(filteredTransactions, config)
+	updatedTransactions := splitTransactions(filteredTransactions, config.SplitCategoryId)
 
 	err = client.UpdateTransactions(ctx, config.BudgetId, updatedTransactions)
 	if err != nil {
@@ -92,7 +93,7 @@ func filterTransactions(transactions []ynab.TransactionDetail, cfg *config) []yn
 	return filtered
 }
 
-func splitTransactions(transactions []ynab.TransactionDetail, cfg *config) []ynab.SaveTransactionWithId {
+func splitTransactions(transactions []ynab.TransactionDetail, splitCategoryId uuid.UUID) []ynab.SaveTransactionWithId {
 	split := make([]ynab.SaveTransactionWithId, len(transactions))
 	for i, t := range transactions {
 		// Copy to avoid pointing to the loop variable
@@ -124,7 +125,7 @@ func splitTransactions(transactions []ynab.TransactionDetail, cfg *config) []yna
 				},
 				{
 					Amount:     owedAmount,
-					CategoryId: &cfg.SplitCategoryId,
+					CategoryId: &splitCategoryId,
 				},
 			},
 		}
