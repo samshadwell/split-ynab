@@ -5,19 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"net/http"
 	"os"
 	"slices"
-	"time"
 
-	"github.com/google/uuid"
-	"github.com/oapi-codegen/runtime/types"
 	"github.com/samshadwell/split-ynab/storage"
 	"github.com/samshadwell/split-ynab/ynab"
 	"go.uber.org/zap"
 )
-
-const ynabServer = "https://api.ynab.com/v1"
 
 func main() {
 	logger, err := zap.NewDevelopment()
@@ -35,17 +29,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	client, err := constructYnabClient(config.YnabToken)
+	client, err := ynab.NewYnabAdapter(logger, config.YnabToken)
 	if err != nil {
 		logger.Error("failed to construct client", zap.Error(err))
 		os.Exit(1)
 	}
 
+	ctx := context.Background()
+
 	storage := storage.NewLocalStorageAdapter()
 	// In case of error we'll process more transactions than we need to, but don't need to exit.
 	serverKnowledge, _ := storage.GetLastServerKnowledge(config.BudgetId)
 
-	transactionsResponse, err := fetchTransactions(logger, config.BudgetId, serverKnowledge, client)
+	transactionsResponse, err := client.FetchTransactions(ctx, config.BudgetId, serverKnowledge)
 	if err != nil {
 		logger.Error("failed to fetch transactions from YNAB", zap.Error(err))
 		os.Exit(1)
@@ -64,7 +60,7 @@ func main() {
 
 	updatedTransactions := splitTransactions(filteredTransactions, config)
 
-	err = updateTransactions(logger, config.BudgetId, updatedTransactions, client)
+	err = client.UpdateTransactions(ctx, config.BudgetId, updatedTransactions)
 	if err != nil {
 		logger.Error("failed to update transactions in YNAB", zap.Error(err))
 		os.Exit(1)
@@ -78,55 +74,6 @@ func main() {
 	}
 
 	logger.Info("run complete, program finished successfully")
-}
-
-func constructYnabClient(authToken string) (*ynab.ClientWithResponses, error) {
-	authRequestEditor := func(ctx context.Context, req *http.Request) error {
-		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", authToken))
-		return nil
-	}
-	return ynab.NewClientWithResponses(ynabServer, ynab.WithRequestEditorFn(authRequestEditor))
-}
-
-func fetchTransactions(
-	logger *zap.Logger,
-	budgetId uuid.UUID,
-	serverKnowledge int64,
-	client *ynab.ClientWithResponses,
-) (*ynab.GetTransactionsResponse, error) {
-	logger.Info("fetching transactions from YNAB",
-		zap.String("budgetId", budgetId.String()),
-		zap.Int64("lastKnowledgeOfServer", serverKnowledge),
-	)
-
-	transactionParams := ynab.GetTransactionsParams{}
-	if serverKnowledge == 0 {
-		// If we don't have any server knowledge, only update transactions from the last 30 days
-		today := time.Now()
-		thirtyDaysAgo := today.AddDate(0, 0, -30)
-		transactionParams.SinceDate = &types.Date{Time: thirtyDaysAgo}
-	} else {
-		transactionParams.LastKnowledgeOfServer = &serverKnowledge
-	}
-
-	transactionsResponse, err := client.GetTransactionsWithResponse(
-		context.TODO(),
-		budgetId.String(),
-		&transactionParams,
-	)
-	if err != nil {
-		return nil, err
-	}
-	statusCode := transactionsResponse.StatusCode()
-	if statusCode != http.StatusOK {
-		return nil, fmt.Errorf("non-200 response from YNAB when fetching transactions: %v", statusCode)
-	}
-
-	logger.Info("successfully fetched transactions from YNAB",
-		zap.Int("count", len(transactionsResponse.JSON200.Data.Transactions)),
-	)
-
-	return transactionsResponse, err
 }
 
 func filterTransactions(transactions []ynab.TransactionDetail, cfg *config) []ynab.TransactionDetail {
@@ -184,28 +131,4 @@ func splitTransactions(transactions []ynab.TransactionDetail, cfg *config) []yna
 	}
 
 	return split
-}
-
-func updateTransactions(
-	logger *zap.Logger,
-	budgetId uuid.UUID,
-	updatedTransactions []ynab.SaveTransactionWithId,
-	client *ynab.ClientWithResponses,
-) error {
-	logger.Info("updating transactions in YNAB")
-	resp, err := client.UpdateTransactionsWithResponse(
-		context.TODO(),
-		budgetId.String(),
-		ynab.UpdateTransactionsJSONRequestBody{
-			Transactions: updatedTransactions,
-		},
-	)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode() != http.StatusOK {
-		return fmt.Errorf("non-200 status code %v from YNAB when updating transactions: %v", resp.StatusCode(), resp.JSON400.Error.Detail)
-	}
-	logger.Info("successfully updated transactions in YNAB")
-	return nil
 }
