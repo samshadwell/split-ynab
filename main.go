@@ -148,17 +148,10 @@ func filterTransactions(transactions []ynab.TransactionDetail, cfg *config) []yn
 func splitTransactions(transactions []ynab.TransactionDetail, cfg *config) []ynab.SaveTransactionWithId {
 	split := make([]ynab.SaveTransactionWithId, len(transactions))
 	for i, t := range transactions {
-		// Copy the fields we need pointers to
+		// Copy to avoid pointing to the loop variable
 		id := t.Id
-		categoryId := t.CategoryId
 
-		// Include existing values of nullable fields to avoid unsetting them
-		payeeId := t.PayeeId
-		memo := t.Memo
-		flagColor := t.FlagColor
-		importId := t.ImportId
-
-		paidAmount := (t.Amount / 2) % 10 // Truncate to the nearest cent
+		paidAmount := ((t.Amount / 2) / 10) * 10 // Divide then multiply to truncate to nearest cent
 		owedAmount := paidAmount
 		extra := t.Amount - (paidAmount + owedAmount)
 		if extra != 0 {
@@ -172,15 +165,15 @@ func splitTransactions(transactions []ynab.TransactionDetail, cfg *config) []yna
 
 		split[i] = ynab.SaveTransactionWithId{
 			Id:         &id,
-			PayeeId:    payeeId,
+			PayeeId:    t.PayeeId,
 			CategoryId: nil,
-			Memo:       memo,
-			FlagColor:  flagColor,
-			ImportId:   importId,
+			Memo:       t.Memo,
+			FlagColor:  t.FlagColor,
+			ImportId:   t.ImportId,
 			Subtransactions: &[]ynab.SaveSubTransaction{
 				{
 					Amount:     paidAmount,
-					CategoryId: categoryId,
+					CategoryId: t.CategoryId,
 				},
 				{
 					Amount:     owedAmount,
