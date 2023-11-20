@@ -80,8 +80,11 @@ func main() {
 func filterTransactions(transactions []ynab.TransactionDetail, cfg *config) []ynab.TransactionDetail {
 	var filtered []ynab.TransactionDetail
 	for _, t := range transactions {
-		if t.Deleted || t.Amount == 0 || t.Cleared == ynab.Reconciled || len(t.Subtransactions) != 0 {
-			// Skip if zero amount, reconciled, or already split
+		if t.Deleted ||
+			t.Amount == 0 ||
+			t.CategoryId == nil || // Example: credit card payments
+			len(t.Subtransactions) != 0 || // Don't re-split already-split transactions
+			t.Cleared == ynab.Reconciled {
 			continue
 		}
 
