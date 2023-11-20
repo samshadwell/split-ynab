@@ -132,7 +132,7 @@ func fetchTransactions(
 func filterTransactions(transactions []ynab.TransactionDetail, cfg *config) []ynab.TransactionDetail {
 	var filtered []ynab.TransactionDetail
 	for _, t := range transactions {
-		if t.Amount == 0 || t.Cleared == ynab.Reconciled || len(t.Subtransactions) != 0 {
+		if t.Deleted || t.Amount == 0 || t.Cleared == ynab.Reconciled || len(t.Subtransactions) != 0 {
 			// Skip if zero amount, reconciled, or already split
 			continue
 		}
@@ -152,12 +152,17 @@ func splitTransactions(transactions []ynab.TransactionDetail, cfg *config) []yna
 		id := t.Id
 		categoryId := t.CategoryId
 
-		totalCentiUnits := t.Amount / 10
-		paidAmount := (totalCentiUnits / 2) * 10
+		// Include existing values of nullable fields to avoid unsetting them
+		payeeId := t.PayeeId
+		memo := t.Memo
+		flagColor := t.FlagColor
+		importId := t.ImportId
+
+		paidAmount := (t.Amount / 2) % 10 // Truncate to the nearest cent
 		owedAmount := paidAmount
-		if paidAmount+owedAmount != t.Amount {
-			extra := t.Amount - (paidAmount + owedAmount)
-			// Randomly assign the extra cent to one of the two people
+		extra := t.Amount - (paidAmount + owedAmount)
+		if extra != 0 {
+			// Randomly assign the remainder to one of the two people
 			if rand.Intn(2) == 0 {
 				paidAmount += extra
 			} else {
@@ -167,7 +172,11 @@ func splitTransactions(transactions []ynab.TransactionDetail, cfg *config) []yna
 
 		split[i] = ynab.SaveTransactionWithId{
 			Id:         &id,
+			PayeeId:    payeeId,
 			CategoryId: nil,
+			Memo:       memo,
+			FlagColor:  flagColor,
+			ImportId:   importId,
 			Subtransactions: &[]ynab.SaveSubTransaction{
 				{
 					Amount:     paidAmount,
@@ -202,7 +211,7 @@ func updateTransactions(
 		return err
 	}
 	if resp.StatusCode() != http.StatusOK {
-		return fmt.Errorf("non-200 response from YNAB when updating transactions: %v", resp.StatusCode())
+		return fmt.Errorf("non-200 status code %v from YNAB when updating transactions: %v", resp.StatusCode(), resp.JSON400.Error.Detail)
 	}
 	logger.Info("successfully updated transactions in YNAB")
 	return nil
