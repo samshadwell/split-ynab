@@ -79,18 +79,37 @@ func main() {
 
 func filterTransactions(transactions []ynab.TransactionDetail, cfg *config) []ynab.TransactionDetail {
 	var filtered []ynab.TransactionDetail
+OUTER:
 	for _, t := range transactions {
 		if t.Deleted ||
 			t.Amount == 0 ||
 			t.CategoryId == nil || // Example: credit card payments
+			*t.CategoryId == cfg.SplitCategoryId || // Don't re-split already-split transactions
 			len(t.Subtransactions) != 0 || // Don't re-split already-split transactions
 			t.Cleared == ynab.Reconciled {
 			continue
 		}
 
-		if slices.Contains(cfg.SplitAccountIds, t.AccountId) {
+		var flagColor ynab.TransactionFlagColor
+		if t.FlagColor == nil {
+			flagColor = ynab.TransactionFlagColorNil
+		} else {
+			flagColor = *t.FlagColor
+		}
+
+		for _, splitAcct := range cfg.SplitAccounts {
+			if splitAcct.Id != t.AccountId {
+				continue
+			}
+
+			if len(splitAcct.ExceptFlags) == 0 || !slices.Contains(splitAcct.ExceptFlags, flagColor) {
+				filtered = append(filtered, t)
+				continue OUTER // Avoid appending again if another condition is satisfied
+			}
+		}
+
+		if len(cfg.SplitFlags) != 0 && slices.Contains(cfg.SplitFlags, flagColor) {
 			filtered = append(filtered, t)
-			continue
 		}
 	}
 	return filtered

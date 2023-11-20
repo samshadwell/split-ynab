@@ -17,6 +17,166 @@ func uuidLess(a, b uuid.UUID) bool {
 	return a.String() < b.String()
 }
 
+func TestFilterTransactions(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		shouldKeep  bool
+		transaction ynab.TransactionDetail
+	}
+
+	categoryId := uuid.New()
+	splitAcctId1 := uuid.New()
+	splitAcctId2 := uuid.New()
+
+	splitCategory := uuid.New()
+	cfg := config{
+		SplitCategoryId: splitCategory,
+		SplitAccounts: []splitAccount{
+			{Id: splitAcctId1},
+			{Id: splitAcctId2, ExceptFlags: []ynab.TransactionFlagColor{ynab.TransactionFlagColorRed}},
+		},
+		SplitFlags: []ynab.TransactionFlagColor{ynab.TransactionFlagColorBlue},
+	}
+
+	redFlag := ynab.TransactionFlagColorRed
+	blueFlag := ynab.TransactionFlagColorBlue
+
+	testCases := []testCase{
+		// In a split account
+		{
+			shouldKeep: true,
+			transaction: ynab.TransactionDetail{
+				Id:         uuid.New().String(),
+				AccountId:  splitAcctId1,
+				Amount:     -10_000,
+				CategoryId: &categoryId,
+			},
+		},
+		// In split account, with excluded flag
+		{
+			shouldKeep: false,
+			transaction: ynab.TransactionDetail{
+				Id:         uuid.New().String(),
+				AccountId:  splitAcctId2,
+				FlagColor:  &redFlag,
+				Amount:     -10_000,
+				CategoryId: &categoryId,
+			},
+		},
+		// In split account, does not have excluded flag
+		{
+			shouldKeep: true,
+			transaction: ynab.TransactionDetail{
+				Id:         uuid.New().String(),
+				AccountId:  splitAcctId2,
+				FlagColor:  &blueFlag,
+				Amount:     -10_000,
+				CategoryId: &categoryId,
+			},
+		},
+		// Not in split account, no included flag
+		{
+			shouldKeep: false,
+			transaction: ynab.TransactionDetail{
+				Id:         uuid.New().String(),
+				AccountId:  uuid.New(),
+				Amount:     -10_000,
+				CategoryId: &categoryId,
+			},
+		},
+		// Not in split account, but has included flag
+		{
+			shouldKeep: true,
+			transaction: ynab.TransactionDetail{
+				Id:         uuid.New().String(),
+				AccountId:  uuid.New(),
+				FlagColor:  &blueFlag,
+				Amount:     -10_000,
+				CategoryId: &categoryId,
+			},
+		},
+		// Zero-value transaction
+		{
+			shouldKeep: false,
+			transaction: ynab.TransactionDetail{
+				Id:         uuid.New().String(),
+				AccountId:  splitAcctId1,
+				Amount:     0,
+				CategoryId: &categoryId,
+			},
+		},
+		// Missing category (like credit card payment)
+		{
+			shouldKeep: false,
+			transaction: ynab.TransactionDetail{
+				Id:         uuid.New().String(),
+				AccountId:  splitAcctId1,
+				Amount:     -10_000,
+				CategoryId: nil,
+			},
+		},
+		// Category is the split category
+		{
+			shouldKeep: false,
+			transaction: ynab.TransactionDetail{
+				Id:         uuid.New().String(),
+				AccountId:  splitAcctId1,
+				Amount:     -10_000,
+				CategoryId: &splitCategory,
+			},
+		},
+		// Already has subtransactions
+		{
+			shouldKeep: false,
+			transaction: ynab.TransactionDetail{
+				Id:         uuid.New().String(),
+				AccountId:  splitAcctId1,
+				Amount:     -10_000,
+				CategoryId: &categoryId,
+				Subtransactions: []ynab.SubTransaction{
+					{CategoryId: &categoryId, Amount: -5_000},
+					{CategoryId: &splitCategory, Amount: -5_000},
+				},
+			},
+		},
+		// Reconciled
+		{
+			shouldKeep: false,
+			transaction: ynab.TransactionDetail{
+				Id:         uuid.New().String(),
+				AccountId:  splitAcctId1,
+				Amount:     -10_000,
+				CategoryId: &categoryId,
+				Cleared:    ynab.Reconciled,
+			},
+		},
+	}
+
+	wantIds := make([]string, 0)
+	for _, tc := range testCases {
+		if tc.shouldKeep {
+			wantIds = append(wantIds, tc.transaction.Id)
+		}
+	}
+
+	transactions := make([]ynab.TransactionDetail, len(testCases))
+	for i, tc := range testCases {
+		transactions[i] = tc.transaction
+	}
+
+	got := filterTransactions(transactions, &cfg)
+	gotIds := make([]string, len(got))
+	for i, t := range got {
+		gotIds[i] = t.Id
+	}
+
+	if !cmp.Equal(wantIds, gotIds) {
+		diff := cmp.Diff(wantIds, gotIds)
+		t.Fatalf("want filtered transactions to be %v, got %v\n%s", wantIds, gotIds, diff)
+	}
+}
+
 func TestSplitTransactions(t *testing.T) {
 	t.Parallel()
 

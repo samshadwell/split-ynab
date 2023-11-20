@@ -5,14 +5,21 @@ import (
 	"os"
 
 	"github.com/google/uuid"
+	"github.com/samshadwell/split-ynab/ynab"
 	"gopkg.in/yaml.v3"
 )
 
+type splitAccount struct {
+	Id          uuid.UUID                   `yaml:"id"`
+	ExceptFlags []ynab.TransactionFlagColor `yaml:"exceptFlags"`
+}
+
 type config struct {
-	YnabToken       string      `yaml:"ynabToken"`
-	BudgetId        uuid.UUID   `yaml:"budgetId"`
-	SplitCategoryId uuid.UUID   `yaml:"splitCategoryId"`
-	SplitAccountIds []uuid.UUID `yaml:"splitAccountIds"`
+	YnabToken       string                      `yaml:"ynabToken"`
+	BudgetId        uuid.UUID                   `yaml:"budgetId"`
+	SplitCategoryId uuid.UUID                   `yaml:"splitCategoryId"`
+	SplitAccounts   []splitAccount              `yaml:"splitAccounts"`
+	SplitFlags      []ynab.TransactionFlagColor `yaml:"splitFlags"`
 }
 
 func LoadConfig() (*config, error) {
@@ -48,9 +55,31 @@ func LoadConfig() (*config, error) {
 		return nil, fmt.Errorf("missing required fields in config file: %v", missingFields)
 	}
 
-	for _, id := range cfg.SplitAccountIds {
-		if id == uuid.Nil {
-			return nil, fmt.Errorf("invalid or mal-formatted UUID in splitAccountIds config")
+	// Doesn't seem like there's a better way than enumerating these by hand
+	validColors := map[ynab.TransactionFlagColor]bool{
+		ynab.TransactionFlagColorBlue:   true,
+		ynab.TransactionFlagColorGreen:  true,
+		ynab.TransactionFlagColorNil:    true,
+		ynab.TransactionFlagColorOrange: true,
+		ynab.TransactionFlagColorPurple: true,
+		ynab.TransactionFlagColorRed:    true,
+		ynab.TransactionFlagColorYellow: true,
+	}
+
+	for _, acct := range cfg.SplitAccounts {
+		if acct.Id == uuid.Nil {
+			return nil, fmt.Errorf("invalid or mal-formatted `id` in splitAccounts config")
+		}
+		for _, flag := range acct.ExceptFlags {
+			if !validColors[flag] {
+				return nil, fmt.Errorf("invalid or flag color in `exceptFlags` of splitAccounts: %v", flag)
+			}
+		}
+	}
+
+	for _, flag := range cfg.SplitFlags {
+		if !validColors[flag] {
+			return nil, fmt.Errorf("invalid flag color in `splitFlags`: %v", flag)
 		}
 	}
 
