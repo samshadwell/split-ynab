@@ -1,6 +1,8 @@
 package storage
 
+import "github.com/google/uuid"
+
 type StorageAdapter interface {
-	GetLastServerKnowledge(budgetId string) (int64, error)
-	SetLastServerKnowledge(budgetId string, serverKnowledge int64) error
+	GetLastServerKnowledge(budgetId uuid.UUID) (int64, error)
+	SetLastServerKnowledge(budgetId uuid.UUID, serverKnowledge int64) error
 }

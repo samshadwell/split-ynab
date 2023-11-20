@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
 
@@ -12,8 +13,8 @@ type localStorageAdapter struct{}
 const storageFile = "storage.yml"
 
 type budgetData struct {
-	BudgetId            string `yaml:"budgetId"`
-	LastServerKnowledge int64  `yaml:"lastServerKnowledge"`
+	BudgetId            uuid.UUID `yaml:"budgetId"`
+	LastServerKnowledge int64     `yaml:"lastServerKnowledge"`
 }
 
 // Creates a StorageAdapter which stores data in a yaml file. Intended mostly for prototyping or running in environments
@@ -22,8 +23,8 @@ func NewLocalStorageAdapter() StorageAdapter {
 	return &localStorageAdapter{}
 }
 
-func (l *localStorageAdapter) GetLastServerKnowledge(budgetId string) (int64, error) {
-	data, err := l.readData(budgetId)
+func (l *localStorageAdapter) GetLastServerKnowledge(budgetId uuid.UUID) (int64, error) {
+	data, err := l.readData()
 	if err != nil {
 		return 0, err
 	}
@@ -34,14 +35,14 @@ func (l *localStorageAdapter) GetLastServerKnowledge(budgetId string) (int64, er
 		}
 	}
 
-	return 0, fmt.Errorf("No budget found with id %v", budgetId)
+	return 0, fmt.Errorf("no budget found with id %v", budgetId)
 }
 
-func (l *localStorageAdapter) SetLastServerKnowledge(budgetId string, serverKnowledge int64) error {
+func (l *localStorageAdapter) SetLastServerKnowledge(budgetId uuid.UUID, serverKnowledge int64) error {
 	var data []budgetData
 
 	if _, err := os.Stat(storageFile); err == nil {
-		data, err = l.readData(budgetId)
+		data, err = l.readData()
 		if err != nil {
 			return err
 		}
@@ -74,7 +75,7 @@ func (l *localStorageAdapter) SetLastServerKnowledge(budgetId string, serverKnow
 	return encoder.Encode(data)
 }
 
-func (l *localStorageAdapter) readData(budgetId string) ([]budgetData, error) {
+func (l *localStorageAdapter) readData() ([]budgetData, error) {
 	f, err := os.Open(storageFile)
 	if err != nil {
 		return nil, err
