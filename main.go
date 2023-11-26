@@ -14,26 +14,44 @@ import (
 	"go.uber.org/zap"
 )
 
+const configFile = "config.yml"
+
+type splitTransaction struct {
+	transaction   *ynab.TransactionDetail
+	pctTheirShare int
+}
+
 func main() {
+	os.Exit(mainReturnWithCode())
+}
+
+func mainReturnWithCode() int {
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error while creating logger: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 	defer func() {
 		err = errors.Join(err, logger.Sync())
 	}()
 
-	config, err := LoadConfig()
+	f, err := os.Open(configFile)
+	if err != nil {
+		logger.Error("error opening config file. Did you create a config.yml?", zap.Error(err))
+		return 1
+	}
+	defer f.Close()
+
+	config, err := LoadConfig(f)
 	if err != nil {
 		logger.Error("failed to load config", zap.Error(err))
-		os.Exit(1)
+		return 1
 	}
 
 	client, err := ynab.NewYnabAdapter(logger, config.YnabToken)
 	if err != nil {
 		logger.Error("failed to construct client", zap.Error(err))
-		os.Exit(1)
+		return 1
 	}
 
 	ctx := context.Background()
@@ -45,7 +63,7 @@ func main() {
 	transactionsResponse, err := client.FetchTransactions(ctx, config.BudgetId, serverKnowledge)
 	if err != nil {
 		logger.Error("failed to fetch transactions from YNAB", zap.Error(err))
-		os.Exit(1)
+		return 1
 	}
 
 	updatedServerKnowledge := transactionsResponse.JSON200.Data.ServerKnowledge
@@ -56,7 +74,7 @@ func main() {
 		logger.Info("no transactions to update, exiting")
 		// Ignore errors since we're exiting anyway
 		_ = storage.SetLastServerKnowledge(config.BudgetId, updatedServerKnowledge)
-		os.Exit(0)
+		return 0
 	}
 
 	updatedTransactions := splitTransactions(filteredTransactions, config.SplitCategoryId)
@@ -64,22 +82,33 @@ func main() {
 	err = client.UpdateTransactions(ctx, config.BudgetId, updatedTransactions)
 	if err != nil {
 		logger.Error("failed to update transactions in YNAB", zap.Error(err))
-		os.Exit(1)
+		return 1
 	}
 
 	logger.Info("setting server knowledge", zap.Int64("serverKnowledge", updatedServerKnowledge))
 	err = storage.SetLastServerKnowledge(config.BudgetId, updatedServerKnowledge)
 	if err != nil {
 		logger.Error("failed to set new server knowledge", zap.Error(err))
-		os.Exit(1)
 	}
 
 	logger.Info("run complete, program finished successfully")
+	return 0
 }
 
-func filterTransactions(transactions []ynab.TransactionDetail, cfg *config) []ynab.TransactionDetail {
-	var filtered []ynab.TransactionDetail
-OUTER:
+func filterTransactions(transactions []ynab.TransactionDetail, cfg *config) []splitTransaction {
+	acctConfigs := make(map[uuid.UUID]*accountConfig, len(cfg.Accounts))
+	for _, acct := range cfg.Accounts {
+		copy := acct
+		acctConfigs[acct.Id] = &copy
+	}
+
+	splitFlags := make(map[ynab.TransactionFlagColor]*flagConfig, len(cfg.Flags))
+	for _, f := range cfg.Flags {
+		copy := f
+		splitFlags[f.Color] = &copy
+	}
+
+	filtered := make([]splitTransaction, 0)
 	for _, t := range transactions {
 		if t.Deleted ||
 			t.Amount == 0 ||
@@ -90,6 +119,9 @@ OUTER:
 			continue
 		}
 
+		shouldAdd := false
+		theirShare := 0
+
 		var flagColor ynab.TransactionFlagColor
 		if t.FlagColor == nil {
 			flagColor = ynab.TransactionFlagColorNil
@@ -97,39 +129,61 @@ OUTER:
 			flagColor = *t.FlagColor
 		}
 
-		for _, splitAcct := range cfg.SplitAccounts {
-			if splitAcct.Id != t.AccountId {
-				continue
-			}
-
-			if len(splitAcct.ExceptFlags) == 0 || !slices.Contains(splitAcct.ExceptFlags, flagColor) {
-				filtered = append(filtered, t)
-				continue OUTER // Avoid appending again if another condition is satisfied
+		acctConfig := acctConfigs[t.AccountId]
+		if acctConfig != nil {
+			if len(acctConfig.ExceptFlags) == 0 || !slices.Contains(acctConfig.ExceptFlags, flagColor) {
+				shouldAdd = true
+				theirShare = *acctConfig.DefaultPercentTheirShare
 			}
 		}
 
-		if len(cfg.SplitFlags) != 0 && slices.Contains(cfg.SplitFlags, flagColor) {
-			filtered = append(filtered, t)
+		flagConfig := splitFlags[flagColor]
+		if flagConfig != nil {
+			shouldAdd = true
+			theirShare = *flagConfig.PercentTheirShare
+		}
+
+		if shouldAdd {
+			if theirShare == 0 {
+				panic("programmer error, theirShare should never be 0")
+			}
+
+			transactionCopy := t
+			filtered = append(filtered, splitTransaction{
+				transaction:   &transactionCopy,
+				pctTheirShare: theirShare,
+			})
 		}
 	}
+
 	return filtered
 }
 
-func splitTransactions(transactions []ynab.TransactionDetail, splitCategoryId uuid.UUID) []ynab.SaveTransactionWithId {
+func splitTransactions(transactions []splitTransaction, splitCategoryId uuid.UUID) []ynab.SaveTransactionWithId {
 	split := make([]ynab.SaveTransactionWithId, len(transactions))
-	for i, t := range transactions {
+
+	for i, splitTransaction := range transactions {
+		t := splitTransaction.transaction
+
 		// Copy to avoid pointing to the loop variable
 		id := t.Id
 
-		paidAmount := ((t.Amount / 2) / 10) * 10 // Divide then multiply to truncate to nearest cent
-		owedAmount := paidAmount
-		extra := t.Amount - (paidAmount + owedAmount)
+		// Use cents to avoid assigning sub-cent amounts
+		totalCents := t.Amount / 10
+		ourShare := totalCents * (100 - int64(splitTransaction.pctTheirShare)) / 100
+		theirShare := totalCents * int64(splitTransaction.pctTheirShare) / 100
+
+		// Turn back into milli-dollars
+		ourShare *= 10
+		theirShare *= 10
+
+		extra := t.Amount - (ourShare + theirShare)
 		if extra != 0 {
 			// Randomly assign the remainder to one of the two people
 			if rand.Intn(2) == 0 {
-				paidAmount += extra
+				ourShare += extra
 			} else {
-				owedAmount += extra
+				theirShare += extra
 			}
 		}
 
@@ -142,11 +196,11 @@ func splitTransactions(transactions []ynab.TransactionDetail, splitCategoryId uu
 			ImportId:   t.ImportId,
 			Subtransactions: &[]ynab.SaveSubTransaction{
 				{
-					Amount:     paidAmount,
+					Amount:     ourShare,
 					CategoryId: t.CategoryId,
 				},
 				{
-					Amount:     owedAmount,
+					Amount:     theirShare,
 					CategoryId: &splitCategoryId,
 				},
 			},

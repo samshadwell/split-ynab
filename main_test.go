@@ -18,37 +18,56 @@ func uuidLess(a, b uuid.UUID) bool {
 }
 
 func TestFilterTransactions(t *testing.T) {
-	t.Parallel()
-
-	type testCase struct {
-		shouldKeep  bool
-		transaction ynab.TransactionDetail
-	}
-
 	categoryId := uuid.New()
 	splitAcctId1 := uuid.New()
 	splitAcctId2 := uuid.New()
 
 	splitCategory := uuid.New()
+	twenty := 20
+	thirty := 30
+	fifty := 50
 	cfg := config{
 		SplitCategoryId: splitCategory,
-		SplitAccounts: []splitAccount{
-			{Id: splitAcctId1},
-			{Id: splitAcctId2, ExceptFlags: []ynab.TransactionFlagColor{ynab.TransactionFlagColorRed}},
+		Accounts: []accountConfig{
+			{Id: splitAcctId1, DefaultPercentTheirShare: &twenty},
+			{Id: splitAcctId2, DefaultPercentTheirShare: &thirty, ExceptFlags: []ynab.TransactionFlagColor{ynab.TransactionFlagColorRed}},
 		},
-		SplitFlags: []ynab.TransactionFlagColor{ynab.TransactionFlagColorBlue},
+		Flags: []flagConfig{
+			{Color: ynab.TransactionFlagColorBlue, PercentTheirShare: &fifty},
+			{Color: ynab.TransactionFlagColorPurple, PercentTheirShare: &thirty},
+		},
 	}
 
-	redFlag := ynab.TransactionFlagColorRed
 	blueFlag := ynab.TransactionFlagColorBlue
+	greenFlag := ynab.TransactionFlagColorGreen
+	purpleFlag := ynab.TransactionFlagColorPurple
+	redFlag := ynab.TransactionFlagColorRed
 
+	type testCase struct {
+		shouldKeep     bool
+		wantTheirShare int
+		transaction    ynab.TransactionDetail
+	}
 	testCases := []testCase{
 		// In a split account
 		{
-			shouldKeep: true,
+			shouldKeep:     true,
+			wantTheirShare: 20,
 			transaction: ynab.TransactionDetail{
-				Id:         uuid.New().String(),
+				Id:         "00000000-0000-0000-0000-000000000001",
 				AccountId:  splitAcctId1,
+				Amount:     -10_000,
+				CategoryId: &categoryId,
+			},
+		},
+		// In a split account, with amount override flag
+		{
+			shouldKeep:     true,
+			wantTheirShare: 50,
+			transaction: ynab.TransactionDetail{
+				Id:         "00000000-0000-0000-0000-000000000002",
+				AccountId:  splitAcctId1,
+				FlagColor:  &blueFlag,
 				Amount:     -10_000,
 				CategoryId: &categoryId,
 			},
@@ -57,7 +76,7 @@ func TestFilterTransactions(t *testing.T) {
 		{
 			shouldKeep: false,
 			transaction: ynab.TransactionDetail{
-				Id:         uuid.New().String(),
+				Id:         "00000000-0000-0000-0000-000000000003",
 				AccountId:  splitAcctId2,
 				FlagColor:  &redFlag,
 				Amount:     -10_000,
@@ -66,11 +85,12 @@ func TestFilterTransactions(t *testing.T) {
 		},
 		// In split account, does not have excluded flag
 		{
-			shouldKeep: true,
+			shouldKeep:     true,
+			wantTheirShare: 30,
 			transaction: ynab.TransactionDetail{
-				Id:         uuid.New().String(),
+				Id:         "00000000-0000-0000-0000-000000000004",
 				AccountId:  splitAcctId2,
-				FlagColor:  &blueFlag,
+				FlagColor:  &greenFlag,
 				Amount:     -10_000,
 				CategoryId: &categoryId,
 			},
@@ -79,7 +99,7 @@ func TestFilterTransactions(t *testing.T) {
 		{
 			shouldKeep: false,
 			transaction: ynab.TransactionDetail{
-				Id:         uuid.New().String(),
+				Id:         "00000000-0000-0000-0000-000000000005",
 				AccountId:  uuid.New(),
 				Amount:     -10_000,
 				CategoryId: &categoryId,
@@ -87,11 +107,24 @@ func TestFilterTransactions(t *testing.T) {
 		},
 		// Not in split account, but has included flag
 		{
-			shouldKeep: true,
+			shouldKeep:     true,
+			wantTheirShare: 50,
 			transaction: ynab.TransactionDetail{
-				Id:         uuid.New().String(),
+				Id:         "00000000-0000-0000-0000-000000000006",
 				AccountId:  uuid.New(),
 				FlagColor:  &blueFlag,
+				Amount:     -10_000,
+				CategoryId: &categoryId,
+			},
+		},
+		// Not in split account, other included flag
+		{
+			shouldKeep:     true,
+			wantTheirShare: 30,
+			transaction: ynab.TransactionDetail{
+				Id:         "00000000-0000-0000-0000-000000000007",
+				AccountId:  uuid.New(),
+				FlagColor:  &purpleFlag,
 				Amount:     -10_000,
 				CategoryId: &categoryId,
 			},
@@ -100,7 +133,7 @@ func TestFilterTransactions(t *testing.T) {
 		{
 			shouldKeep: false,
 			transaction: ynab.TransactionDetail{
-				Id:         uuid.New().String(),
+				Id:         "00000000-0000-0000-0000-000000000008",
 				AccountId:  splitAcctId1,
 				Amount:     0,
 				CategoryId: &categoryId,
@@ -110,7 +143,7 @@ func TestFilterTransactions(t *testing.T) {
 		{
 			shouldKeep: false,
 			transaction: ynab.TransactionDetail{
-				Id:         uuid.New().String(),
+				Id:         "00000000-0000-0000-0000-000000000009",
 				AccountId:  splitAcctId1,
 				Amount:     -10_000,
 				CategoryId: nil,
@@ -120,7 +153,7 @@ func TestFilterTransactions(t *testing.T) {
 		{
 			shouldKeep: false,
 			transaction: ynab.TransactionDetail{
-				Id:         uuid.New().String(),
+				Id:         "00000000-0000-0000-0000-00000000000a",
 				AccountId:  splitAcctId1,
 				Amount:     -10_000,
 				CategoryId: &splitCategory,
@@ -130,7 +163,7 @@ func TestFilterTransactions(t *testing.T) {
 		{
 			shouldKeep: false,
 			transaction: ynab.TransactionDetail{
-				Id:         uuid.New().String(),
+				Id:         "00000000-0000-0000-0000-00000000000b",
 				AccountId:  splitAcctId1,
 				Amount:     -10_000,
 				CategoryId: &categoryId,
@@ -144,7 +177,7 @@ func TestFilterTransactions(t *testing.T) {
 		{
 			shouldKeep: false,
 			transaction: ynab.TransactionDetail{
-				Id:         uuid.New().String(),
+				Id:         "00000000-0000-0000-0000-00000000000c",
 				AccountId:  splitAcctId1,
 				Amount:     -10_000,
 				CategoryId: &categoryId,
@@ -153,10 +186,14 @@ func TestFilterTransactions(t *testing.T) {
 		},
 	}
 
-	wantIds := make([]string, 0)
+	type idTheirSharePairs struct {
+		Id            string
+		PctTheirShare int
+	}
+	want := make([]idTheirSharePairs, 0)
 	for _, tc := range testCases {
 		if tc.shouldKeep {
-			wantIds = append(wantIds, tc.transaction.Id)
+			want = append(want, idTheirSharePairs{tc.transaction.Id, tc.wantTheirShare})
 		}
 	}
 
@@ -166,20 +203,17 @@ func TestFilterTransactions(t *testing.T) {
 	}
 
 	got := filterTransactions(transactions, &cfg)
-	gotIds := make([]string, len(got))
+	gotPairs := make([]idTheirSharePairs, len(got))
 	for i, t := range got {
-		gotIds[i] = t.Id
+		gotPairs[i] = idTheirSharePairs{t.transaction.Id, t.pctTheirShare}
 	}
 
-	if !cmp.Equal(wantIds, gotIds) {
-		diff := cmp.Diff(wantIds, gotIds)
-		t.Fatalf("want filtered transactions to be %v, got %v\n%s", wantIds, gotIds, diff)
+	if diff := cmp.Diff(want, gotPairs); diff != "" {
+		t.Fatalf("filtered transactions did not match expected. Diff (-want +got):\n%s", diff)
 	}
 }
 
-func TestSplitTransactions(t *testing.T) {
-	t.Parallel()
-
+func TestSplitTransactionsEvenSplit(t *testing.T) {
 	type testCase struct {
 		amount      int64
 		wantAmounts []int64
@@ -195,11 +229,14 @@ func TestSplitTransactions(t *testing.T) {
 		id := uuid.New().String()
 		splitCategory := uuid.New()
 		originalCategory := uuid.New()
-		originalTransactions := []ynab.TransactionDetail{
+		originalTransactions := []splitTransaction{
 			{
-				Id:         id,
-				Amount:     tc.amount,
-				CategoryId: &originalCategory,
+				transaction: &ynab.TransactionDetail{
+					Id:         id,
+					Amount:     tc.amount,
+					CategoryId: &originalCategory,
+				},
+				pctTheirShare: 50,
 			},
 		}
 
@@ -234,5 +271,87 @@ func TestSplitTransactions(t *testing.T) {
 		if !cmp.Equal(wantCategories, gotCategories, cmpopts.SortSlices(uuidLess)) {
 			t.Fatalf("want categories to be %v, got %v", wantCategories, gotCategories)
 		}
+	}
+}
+
+func TestSplitTransactionsUnevenSplit(t *testing.T) {
+	id := uuid.New().String()
+	splitCategory := uuid.New()
+	originalCategory := uuid.New()
+	originalTransactions := []splitTransaction{
+		{
+			transaction: &ynab.TransactionDetail{
+				Id:         id,
+				Amount:     -10_000,
+				CategoryId: &originalCategory,
+			},
+			pctTheirShare: 30,
+		},
+	}
+
+	got := splitTransactions(originalTransactions, splitCategory)
+
+	var gotTheirAmount, gotOurAmount int64
+	for i, sub := range *got[0].Subtransactions {
+		if i > 1 {
+			t.Fatalf("want 2 subtransactions, got %d", len(*got[0].Subtransactions))
+		}
+
+		if *sub.CategoryId == splitCategory {
+			gotTheirAmount = sub.Amount
+		} else {
+			gotOurAmount = sub.Amount
+		}
+	}
+
+	if gotTheirAmount != -3_000 {
+		t.Fatalf("want their amount to be -3_000, got %d", gotTheirAmount)
+	}
+
+	if gotOurAmount != -7_000 {
+		t.Fatalf("want our amount to be -7_000, got %d", gotOurAmount)
+	}
+}
+
+func TestSplitTransactionsUnevenSplitWithRemainder(t *testing.T) {
+	id := uuid.New().String()
+	splitCategory := uuid.New()
+	originalCategory := uuid.New()
+	originalTransactions := []splitTransaction{
+		{
+			transaction: &ynab.TransactionDetail{
+				Id:         id,
+				Amount:     -10_010, // $10.01, ideal split is $7.007 and $3.003
+				CategoryId: &originalCategory,
+			},
+			pctTheirShare: 30,
+		},
+	}
+
+	got := splitTransactions(originalTransactions, splitCategory)
+
+	var gotTheirAmount, gotOurAmount int64
+	for i, sub := range *got[0].Subtransactions {
+		if i > 1 {
+			t.Fatalf("want 2 subtransactions, got %d", len(*got[0].Subtransactions))
+		}
+
+		if *sub.CategoryId == splitCategory {
+			gotTheirAmount = sub.Amount
+		} else {
+			gotOurAmount = sub.Amount
+		}
+	}
+
+	if gotTheirAmount != -3_000 && gotTheirAmount != -3_010 {
+		t.Fatalf("want their amount to be either -3_000 or -3_010, got %d", gotTheirAmount)
+	}
+
+	if gotOurAmount != -7_000 && gotOurAmount != -7_010 {
+		t.Fatalf("want our amount to be either -7_000 or -7_010, got %d", gotOurAmount)
+	}
+
+	if gotTheirAmount+gotOurAmount != -10_010 {
+		t.Fatalf("want total amount to be -10_010, got %d", gotTheirAmount+gotOurAmount)
 	}
 }

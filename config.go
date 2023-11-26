@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/google/uuid"
@@ -9,27 +10,33 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type splitAccount struct {
-	Id          uuid.UUID                   `yaml:"id"`
-	ExceptFlags []ynab.TransactionFlagColor `yaml:"exceptFlags"`
+type accountConfig struct {
+	Id                       uuid.UUID                   `yaml:"id"`
+	ExceptFlags              []ynab.TransactionFlagColor `yaml:"exceptFlags"`
+	DefaultPercentTheirShare *int                        `yaml:"defaultPercentTheirShare"`
+}
+
+type flagConfig struct {
+	Color             ynab.TransactionFlagColor `yaml:"color"`
+	PercentTheirShare *int                      `yaml:"percentTheirShare"`
 }
 
 type config struct {
-	YnabToken       string                      `yaml:"ynabToken"`
-	BudgetId        uuid.UUID                   `yaml:"budgetId"`
-	SplitCategoryId uuid.UUID                   `yaml:"splitCategoryId"`
-	SplitAccounts   []splitAccount              `yaml:"splitAccounts"`
-	SplitFlags      []ynab.TransactionFlagColor `yaml:"splitFlags"`
+	YnabToken       string          `yaml:"ynabToken"`
+	BudgetId        uuid.UUID       `yaml:"budgetId"`
+	SplitCategoryId uuid.UUID       `yaml:"splitCategoryId"`
+	Accounts        []accountConfig `yaml:"accounts"`
+	Flags           []flagConfig    `yaml:"flags"`
 }
 
-func LoadConfig() (*config, error) {
+func LoadConfig(reader io.Reader) (*config, error) {
 	f, err := os.Open("config.yml")
 	if err != nil {
 		return nil, fmt.Errorf("error opening config file. Did you create a config.yml?\n\t%w\n", err)
 	}
 	defer f.Close()
 
-	decoder := yaml.NewDecoder(f)
+	decoder := yaml.NewDecoder(reader)
 	var cfg config
 	err = decoder.Decode(&cfg)
 	if err != nil {
@@ -39,8 +46,18 @@ func LoadConfig() (*config, error) {
 		)
 	}
 
+	err = cfg.validate()
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.setDefaults()
+
+	return &cfg, nil
+}
+
+func (cfg *config) validate() error {
 	missingFields := make([]string, 0)
-	fmt.Println(cfg.SplitCategoryId)
 	if len(cfg.YnabToken) == 0 {
 		missingFields = append(missingFields, "ynabToken")
 	}
@@ -52,7 +69,7 @@ func LoadConfig() (*config, error) {
 	}
 
 	if len(missingFields) > 0 {
-		return nil, fmt.Errorf("missing required fields in config file: %v", missingFields)
+		return fmt.Errorf("missing required fields: %v", missingFields)
 	}
 
 	// Doesn't seem like there's a better way than enumerating these by hand
@@ -66,22 +83,54 @@ func LoadConfig() (*config, error) {
 		ynab.TransactionFlagColorYellow: true,
 	}
 
-	for _, acct := range cfg.SplitAccounts {
+	for idx, acct := range cfg.Accounts {
 		if acct.Id == uuid.Nil {
-			return nil, fmt.Errorf("invalid or mal-formatted `id` in splitAccounts config")
+			return fmt.Errorf("invalid or mal-formatted `id` in `accounts` at index %v", idx)
 		}
 		for _, flag := range acct.ExceptFlags {
 			if !validColors[flag] {
-				return nil, fmt.Errorf("invalid or flag color in `exceptFlags` of splitAccounts: %v", flag)
+				return fmt.Errorf("invalid flag color in `exceptFlags` of account: %v", flag)
+			}
+		}
+		if acct.DefaultPercentTheirShare != nil {
+			pctOwed := *acct.DefaultPercentTheirShare
+			if pctOwed < 1 || pctOwed > 99 {
+				return fmt.Errorf("invalid `defaultPercentTheirShare` of account. Must be between 1 and 99, inclusive: %v", pctOwed)
 			}
 		}
 	}
 
-	for _, flag := range cfg.SplitFlags {
-		if !validColors[flag] {
-			return nil, fmt.Errorf("invalid flag color in `splitFlags`: %v", flag)
+	for _, flag := range cfg.Flags {
+		if !validColors[flag.Color] {
+			return fmt.Errorf("invalid flag color in `flags`: %v", flag)
+		}
+		if flag.PercentTheirShare != nil {
+			pctOwed := *flag.PercentTheirShare
+			if pctOwed < 1 || pctOwed > 99 {
+				return fmt.Errorf("invalid `percentTheirShare`, must be between 1 and 99, inclusive: %v", pctOwed)
+			}
 		}
 	}
 
-	return &cfg, nil
+	if len(cfg.Accounts) == 0 && len(cfg.Flags) == 0 {
+		return fmt.Errorf("config must have at least one of either account or flag")
+	}
+
+	return nil
+}
+
+func (cfg *config) setDefaults() {
+	fifty := new(int)
+	*fifty = 50
+	for i, acct := range cfg.Accounts {
+		if acct.DefaultPercentTheirShare == nil {
+			cfg.Accounts[i].DefaultPercentTheirShare = fifty
+		}
+	}
+
+	for i, flag := range cfg.Flags {
+		if flag.PercentTheirShare == nil {
+			cfg.Flags[i].PercentTheirShare = fifty
+		}
+	}
 }
