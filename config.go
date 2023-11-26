@@ -41,7 +41,7 @@ func LoadConfig(reader io.Reader) (*config, error) {
 	err = decoder.Decode(&cfg)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"error decoding config file. Make sure it has the correct format. See config.yml.example for an example\n\t%w\n",
+			"error decoding config file. Make sure it has the correct format. See README.md for an example\n\t%w\n",
 			err,
 		)
 	}
