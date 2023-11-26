@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/google/uuid"
 	"github.com/samshadwell/split-ynab/ynab"
@@ -30,15 +29,9 @@ type config struct {
 }
 
 func LoadConfig(reader io.Reader) (*config, error) {
-	f, err := os.Open("config.yml")
-	if err != nil {
-		return nil, fmt.Errorf("error opening config file. Did you create a config.yml?\n\t%w\n", err)
-	}
-	defer f.Close()
-
 	decoder := yaml.NewDecoder(reader)
 	var cfg config
-	err = decoder.Decode(&cfg)
+	err := decoder.Decode(&cfg)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"error decoding config file. Make sure it has the correct format. See README.md for an example\n\t%w\n",
