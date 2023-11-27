@@ -19,7 +19,10 @@ func main() {
 		fmt.Printf("failed to initialize logger: %v", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer func() {
+		// If this fails there's not much to do about it. This is mostly here to appease the linter.
+		_ = logger.Sync()
+	}()
 
 	f, err := os.Open(configFile)
 	if err != nil {
