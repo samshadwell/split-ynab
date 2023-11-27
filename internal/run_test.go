@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
-	"github.com/samshadwell/split-ynab/ynab"
+	"github.com/samshadwell/split-ynab/internal/ynab"
 )
 
 func int64Less(a, b int64) bool {

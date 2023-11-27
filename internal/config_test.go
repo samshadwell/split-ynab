@@ -1,4 +1,4 @@
-package main
+package internal
 
 import (
 	"strings"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/samshadwell/split-ynab/ynab"
+	"github.com/samshadwell/split-ynab/internal/ynab"
 )
 
 func TestLoadConfig(t *testing.T) {

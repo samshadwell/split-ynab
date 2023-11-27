@@ -1,11 +1,11 @@
-package main
+package internal
 
 import (
 	"fmt"
 	"io"
 
 	"github.com/google/uuid"
-	"github.com/samshadwell/split-ynab/ynab"
+	"github.com/samshadwell/split-ynab/internal/ynab"
 	"gopkg.in/yaml.v3"
 )
 
@@ -34,7 +34,7 @@ func LoadConfig(reader io.Reader) (*config, error) {
 	err := decoder.Decode(&cfg)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"error decoding config file. Make sure it has the correct format. See README.md for an example\n\t%w\n",
+			"error decoding config file. Make sure it has the correct format. See README.md for an example\n\t%w",
 			err,
 		)
 	}

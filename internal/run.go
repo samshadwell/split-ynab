@@ -1,94 +1,68 @@
-package main
+package internal
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"math/rand"
-	"os"
 	"slices"
 
 	"github.com/google/uuid"
-	"github.com/samshadwell/split-ynab/storage"
-	"github.com/samshadwell/split-ynab/ynab"
+	"github.com/pkg/errors"
+	"github.com/samshadwell/split-ynab/internal/storage"
+	"github.com/samshadwell/split-ynab/internal/ynab"
 	"go.uber.org/zap"
 )
-
-const configFile = "config.yml"
 
 type splitTransaction struct {
 	transaction   *ynab.TransactionDetail
 	pctTheirShare int
 }
 
-func main() {
-	logger, err := zap.NewDevelopment()
+func Run(ctx context.Context, logger *zap.Logger, cfg *config, storageAdapter storage.StorageAdapter) error {
+	client, err := ynab.NewYnabAdapter(logger, cfg.YnabToken)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error while creating logger: %v\n", err)
-		os.Exit(1)
+		return errors.Wrap(err, "failed to construct client")
 	}
-	defer func() {
-		err = errors.Join(err, logger.Sync())
-	}()
-
-	f, err := os.Open(configFile)
-	if err != nil {
-		logger.Fatal("error opening config file. Did you create a config.yml?", zap.Error(err))
-	}
-	defer f.Close()
-
-	config, err := LoadConfig(f)
-	if err != nil {
-		logger.Fatal("failed to load config", zap.Error(err))
-	}
-
-	client, err := ynab.NewYnabAdapter(logger, config.YnabToken)
-	if err != nil {
-		logger.Fatal("failed to construct client", zap.Error(err))
-	}
-
-	ctx := context.Background()
-
-	storage := storage.NewLocalStorageAdapter()
 
 	// In case of error we'll process more transactions than we need to, but don't need to exit.
-	serverKnowledge, err := storage.GetLastServerKnowledge(config.BudgetId)
+	logger.Info("getting last server knowledge")
+	serverKnowledge, err := storageAdapter.GetLastServerKnowledge(cfg.BudgetId)
 	if err != nil {
 		logger.Warn("failed to get last server knowledge", zap.Error(err))
 	}
 
-	transactionsResponse, err := client.FetchTransactions(ctx, config.BudgetId, serverKnowledge)
+	transactionsResponse, err := client.FetchTransactions(ctx, cfg.BudgetId, serverKnowledge)
 	if err != nil {
-		logger.Fatal("failed to fetch transactions from YNAB", zap.Error(err))
+		return errors.Wrap(err, "failed to fetch transactions from YNAB")
 	}
 
 	updatedServerKnowledge := transactionsResponse.JSON200.Data.ServerKnowledge
-	filteredTransactions := filterTransactions(transactionsResponse.JSON200.Data.Transactions, config)
+	filteredTransactions := filterTransactions(transactionsResponse.JSON200.Data.Transactions, cfg)
 	logger.Info("finished filtering transactions", zap.Int("count", len(filteredTransactions)))
 
 	if len(filteredTransactions) == 0 {
 		logger.Info("no transactions to update, exiting")
-		err = storage.SetLastServerKnowledge(config.BudgetId, updatedServerKnowledge)
+		err = storageAdapter.SetLastServerKnowledge(cfg.BudgetId, updatedServerKnowledge)
 		if err != nil {
 			logger.Warn("failed to set new server knowledge", zap.Error(err))
 		}
-		return
+		return nil
 	}
 
-	updatedTransactions := splitTransactions(filteredTransactions, config.SplitCategoryId)
+	updatedTransactions := splitTransactions(filteredTransactions, cfg.SplitCategoryId)
 
-	err = client.UpdateTransactions(ctx, config.BudgetId, updatedTransactions)
+	err = client.UpdateTransactions(ctx, cfg.BudgetId, updatedTransactions)
 	if err != nil {
-		logger.Fatal("failed to update transactions in YNAB", zap.Error(err))
+		return errors.Wrap(err, "failed to update transactions in YNAB")
 	}
 
 	logger.Info("setting server knowledge", zap.Int64("serverKnowledge", updatedServerKnowledge))
-	err = storage.SetLastServerKnowledge(config.BudgetId, updatedServerKnowledge)
+	err = storageAdapter.SetLastServerKnowledge(cfg.BudgetId, updatedServerKnowledge)
 	if err != nil {
 		logger.Warn("failed to set new server knowledge", zap.Error(err))
 	}
 
 	logger.Info("run complete, program finished successfully")
+	return nil
 }
 
 func filterTransactions(transactions []ynab.TransactionDetail, cfg *config) []splitTransaction {

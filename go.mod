@@ -12,5 +12,6 @@ require (
 
 require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
+	github.com/pkg/errors v0.9.1
 	go.uber.org/multierr v1.11.0 // indirect
 )
