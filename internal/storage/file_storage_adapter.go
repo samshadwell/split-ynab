@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -23,7 +24,7 @@ func NewLocalStorageAdapter() StorageAdapter {
 	return &localStorageAdapter{}
 }
 
-func (l *localStorageAdapter) GetLastServerKnowledge(budgetId uuid.UUID) (int64, error) {
+func (l *localStorageAdapter) GetLastServerKnowledge(ctx context.Context, budgetId uuid.UUID) (int64, error) {
 	data, err := l.readData()
 	if err != nil {
 		return 0, err
@@ -38,7 +39,7 @@ func (l *localStorageAdapter) GetLastServerKnowledge(budgetId uuid.UUID) (int64,
 	return 0, fmt.Errorf("no budget found with id %v", budgetId)
 }
 
-func (l *localStorageAdapter) SetLastServerKnowledge(budgetId uuid.UUID, serverKnowledge int64) error {
+func (l *localStorageAdapter) SetLastServerKnowledge(ctx context.Context, budgetId uuid.UUID, serverKnowledge int64) error {
 	var data []budgetData
 
 	if _, err := os.Stat(storageFile); err == nil {

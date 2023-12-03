@@ -17,7 +17,7 @@ type splitTransaction struct {
 	pctTheirShare int
 }
 
-func Run(ctx context.Context, logger *zap.Logger, cfg *config, storageAdapter storage.StorageAdapter) error {
+func Run(ctx context.Context, logger *zap.Logger, cfg *Config, storageAdapter storage.StorageAdapter) error {
 	client, err := ynab.NewYnabAdapter(logger, cfg.YnabToken)
 	if err != nil {
 		return errors.Wrap(err, "failed to construct client")
@@ -25,7 +25,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config, storageAdapter st
 
 	// In case of error we'll process more transactions than we need to, but don't need to exit.
 	logger.Info("getting last server knowledge")
-	serverKnowledge, err := storageAdapter.GetLastServerKnowledge(cfg.BudgetId)
+	serverKnowledge, err := storageAdapter.GetLastServerKnowledge(ctx, cfg.BudgetId)
 	if err != nil {
 		logger.Warn("failed to get last server knowledge", zap.Error(err))
 	}
@@ -41,7 +41,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config, storageAdapter st
 
 	if len(filteredTransactions) == 0 {
 		logger.Info("no transactions to update, exiting")
-		err = storageAdapter.SetLastServerKnowledge(cfg.BudgetId, updatedServerKnowledge)
+		err = storageAdapter.SetLastServerKnowledge(ctx, cfg.BudgetId, updatedServerKnowledge)
 		if err != nil {
 			logger.Warn("failed to set new server knowledge", zap.Error(err))
 		}
@@ -56,7 +56,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config, storageAdapter st
 	}
 
 	logger.Info("setting server knowledge", zap.Int64("serverKnowledge", updatedServerKnowledge))
-	err = storageAdapter.SetLastServerKnowledge(cfg.BudgetId, updatedServerKnowledge)
+	err = storageAdapter.SetLastServerKnowledge(ctx, cfg.BudgetId, updatedServerKnowledge)
 	if err != nil {
 		logger.Warn("failed to set new server knowledge", zap.Error(err))
 	}
@@ -65,7 +65,7 @@ func Run(ctx context.Context, logger *zap.Logger, cfg *config, storageAdapter st
 	return nil
 }
 
-func filterTransactions(transactions []ynab.TransactionDetail, cfg *config) []splitTransaction {
+func filterTransactions(transactions []ynab.TransactionDetail, cfg *Config) []splitTransaction {
 	acctConfigs := make(map[uuid.UUID]*accountConfig, len(cfg.Accounts))
 	for _, acct := range cfg.Accounts {
 		copy := acct

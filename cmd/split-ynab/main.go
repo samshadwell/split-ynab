@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"os"
 
 	"github.com/samshadwell/split-ynab/internal"
@@ -16,11 +16,10 @@ func main() {
 	ctx := context.Background()
 	logger, err := zap.NewDevelopment()
 	if err != nil {
-		fmt.Printf("failed to initialize logger: %v", err)
-		os.Exit(1)
+		log.Fatalf("failed to initialize logger: %v", err)
 	}
 	defer func() {
-		// If this fails there's not much to do about it. This is mostly here to appease the linter.
+		// Ignore any sync errors locally
 		_ = logger.Sync()
 	}()
 

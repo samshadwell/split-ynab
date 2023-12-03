@@ -5,4 +5,3 @@ git config core.hooksPath contrib/githooks
 ```
 
 From root directory.
-

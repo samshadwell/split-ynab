@@ -87,3 +87,41 @@ For all transactions in your YNAB, if it matches one of these flags it will be s
 50/50. This is useful if pay for something on your personal credit card, but you want to split it with your partner.
 It's also useful if you want to split a transaction at a different rate than the default for a given account, like if
 you pay 70% of the internet bill but it comes out of the shared credit card account.
+
+## Running Locally
+
+Assuming you have Go installed (if not, see the [Go docs](https://go.dev/doc/install)), clone the repo, add a
+`config.yml` following the section above, and run:
+
+```shell
+cd split-ynab
+go mod download
+go run cmd/split-ynab/main.go
+```
+
+## Deploying to AWS
+
+This project uses [AWS CDK](https://aws.amazon.com/cdk/) to define all its necessary AWS resources. If you have an AWS
+account, you can easily deploy this project to the cloud where it will run every hour.
+
+See the
+[CDK documentation](https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html#getting_started_prerequisites) for how
+to install the CDK on your machine. Once CDK is installed:
+
+```shell
+cd split-ynab
+cdk bootstrap
+cdk deploy
+```
+
+And the application will be deployed to AWS!
+
+The cost of doing should be zero, assuming you haven't gone past your AWS free tier limits:
+
+- The "always free" tier of AWS Lambda provides 1 million executions per month, which is more than enough to run this
+  every hour.
+- The "always free" tier of AWS DynamoDB provides 25 GB of storage, this application needs only a few bytes to store a
+  single key/value pair.
+- The configuration file is stored as an asset in S3. S3 provides 5GB of free storage for a year, then $0.023 per GB
+  per month after that. My config.yml is a few hundred bytes long, so my usage should round down to $0 once the free
+  tier expires.

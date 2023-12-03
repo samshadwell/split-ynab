@@ -32,7 +32,7 @@ flags:
 
 	thirty := 30
 	fifty := 50
-	want := config{
+	want := Config{
 		YnabToken:       "my-fake-token",
 		BudgetId:        uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 		SplitCategoryId: uuid.MustParse("00000000-0000-0000-0000-000000000002"),

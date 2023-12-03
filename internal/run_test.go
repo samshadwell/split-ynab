@@ -26,7 +26,7 @@ func TestFilterTransactions(t *testing.T) {
 	twenty := 20
 	thirty := 30
 	fifty := 50
-	cfg := config{
+	cfg := Config{
 		SplitCategoryId: splitCategory,
 		Accounts: []accountConfig{
 			{Id: splitAcctId1, DefaultPercentTheirShare: &twenty},

@@ -20,7 +20,7 @@ type flagConfig struct {
 	PercentTheirShare *int                      `yaml:"percentTheirShare"`
 }
 
-type config struct {
+type Config struct {
 	YnabToken       string          `yaml:"ynabToken"`
 	BudgetId        uuid.UUID       `yaml:"budgetId"`
 	SplitCategoryId uuid.UUID       `yaml:"splitCategoryId"`
@@ -28,9 +28,9 @@ type config struct {
 	Flags           []flagConfig    `yaml:"flags"`
 }
 
-func LoadConfig(reader io.Reader) (*config, error) {
+func LoadConfig(reader io.Reader) (*Config, error) {
 	decoder := yaml.NewDecoder(reader)
-	var cfg config
+	var cfg Config
 	err := decoder.Decode(&cfg)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -49,7 +49,7 @@ func LoadConfig(reader io.Reader) (*config, error) {
 	return &cfg, nil
 }
 
-func (cfg *config) validate() error {
+func (cfg *Config) validate() error {
 	missingFields := make([]string, 0)
 	if len(cfg.YnabToken) == 0 {
 		missingFields = append(missingFields, "ynabToken")
@@ -112,7 +112,7 @@ func (cfg *config) validate() error {
 	return nil
 }
 
-func (cfg *config) setDefaults() {
+func (cfg *Config) setDefaults() {
 	fifty := new(int)
 	*fifty = 50
 	for i, acct := range cfg.Accounts {
