@@ -122,6 +122,5 @@ The cost of doing should be zero, assuming you haven't gone past your AWS free t
   every hour.
 - The "always free" tier of AWS DynamoDB provides 25 GB of storage, this application needs only a few bytes to store a
   single key/value pair.
-- The configuration file is stored as an asset in S3. S3 provides 5GB of free storage for a year, then $0.023 per GB
-  per month after that. My config.yml is a few hundred bytes long, so my usage should round down to $0 once the free
-  tier expires.
+- The configuration file and various CDK assets are stored in S3. S3 provides 5GB of free storage for a year,
+  then $0.023 per GB per month after that. Currently the total size of my bucket is 14KB, cost should round to zero.
