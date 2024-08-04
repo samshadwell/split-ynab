@@ -7,8 +7,8 @@ github.com/aws/aws-cdk-go/awscdk/v2 v2.113.0 h1:QKn9rlJ8UcUN4Rx80ODOVvWy5KpHn7Cq
 github.com/aws/aws-cdk-go/awscdk/v2 v2.113.0/go.mod h1:vPNcOhh47T85J52L+xUUZ91IBRvf5dFpe4s4cyiTn1E=
 github.com/aws/aws-cdk-go/awscdklambdagoalpha/v2 v2.113.0-alpha.0 h1:oMCJ6DqBj0vIwB8bYIVtkkkA/kzDVy/oWJ8RrlTXteg=
 github.com/aws/aws-cdk-go/awscdklambdagoalpha/v2 v2.113.0-alpha.0/go.mod h1:SOY/vekaxUPGo5mNp6i4FR4R3XPzQRKjJzca64keG5Y=
-github.com/aws/aws-lambda-go v1.41.0 h1:l/5fyVb6Ud9uYd411xdHZzSf2n86TakxzpvIoz7l+3Y=
-github.com/aws/aws-lambda-go v1.41.0/go.mod h1:jwFe2KmMsHmffA1X2R09hH6lFzJQxzI8qK17ewzbQMM=
+github.com/aws/aws-lambda-go v1.47.0 h1:0H8s0vumYx/YKs4sE7YM0ktwL2eWse+kfopsRI1sXVI=
+github.com/aws/aws-lambda-go v1.47.0/go.mod h1:dpMpZgvWx5vuQJfBt0zqBha60q7Dd7RfgJv23DymV8A=
 github.com/aws/aws-sdk-go-v2 v1.23.5 h1:xK6C4udTyDMd82RFvNkDQxtAd00xlzFUtX4fF2nMZyg=
 github.com/aws/aws-sdk-go-v2 v1.23.5/go.mod h1:t3szzKfP0NeRU27uBFczDivYJjsmSnqI8kIvKyWb9ds=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.5.3 h1:Zx9+31KyB8wQna6SXFWOewlgoY5uGdDAu6PTOEU3OQI=
