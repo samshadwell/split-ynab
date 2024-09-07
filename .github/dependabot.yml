@@ -4,3 +4,9 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
+    groups:
+      minor-bumps:
+        applies-to: "version-updates"
+        update-types:
+          - "minor"
+          - "patch"
