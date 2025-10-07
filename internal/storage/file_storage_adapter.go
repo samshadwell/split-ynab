@@ -39,7 +39,7 @@ func (l *localStorageAdapter) GetLastServerKnowledge(ctx context.Context, budget
 	return 0, fmt.Errorf("no budget found with id %v", budgetId)
 }
 
-func (l *localStorageAdapter) SetLastServerKnowledge(ctx context.Context, budgetId uuid.UUID, serverKnowledge int64) error {
+func (l *localStorageAdapter) SetLastServerKnowledge(ctx context.Context, budgetId uuid.UUID, serverKnowledge int64) (err error) {
 	var data []budgetData
 
 	if _, err := os.Stat(storageFile); err == nil {
@@ -68,25 +68,39 @@ func (l *localStorageAdapter) SetLastServerKnowledge(ctx context.Context, budget
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("failed to close storage file: %w", closeErr)
+		}
+	}()
 
 	encoder := yaml.NewEncoder(f)
-	defer encoder.Close()
+	defer func() {
+		if closeErr := encoder.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("failed to close YAML encoder: %w", closeErr)
+		}
+	}()
 
-	return encoder.Encode(data)
+	if err = encoder.Encode(data); err != nil {
+		return fmt.Errorf("failed to encode storage data: %w", err)
+	}
+
+	return nil
 }
 
-func (l *localStorageAdapter) readData() ([]budgetData, error) {
+func (l *localStorageAdapter) readData() (data []budgetData, err error) {
 	f, err := os.Open(storageFile)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("failed to close storage file: %w", closeErr)
+		}
+	}()
 
-	var data []budgetData
 	decoder := yaml.NewDecoder(f)
-	err = decoder.Decode(&data)
-	if err != nil {
+	if err = decoder.Decode(&data); err != nil {
 		return nil, err
 	}
 
